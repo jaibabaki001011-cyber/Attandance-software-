@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Attendance System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <style>
+        /* RED & BLUE COLOR SCHEME */
+        :root {
+            --blue-dark: #1565C0;
+            --blue-main: #1976D2;
+            --blue-light: #E3F2FD;
+            --red-main: #D32F2F;
+            --red-dark: #C62828;
+            --red-light: #FFEBEE;
+        }
+
+        body { font-family: sans-serif; padding: 20px; background-color: #F0F4F8; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; position: relative; color: var(--blue-dark); border-bottom: 3px solid var(--red-main); padding-bottom: 10px; }
+        .menu-btn { cursor: pointer; font-size: 20px; padding: 8px 15px; background: var(--blue-main); color: white; border-radius: 5px; font-weight: bold;}
+        
+        .menu-content { display: none; position: absolute; top: 50px; right: 0; background: #fff; border: 2px solid var(--blue-main); padding: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-radius: 5px; z-index: 999; min-width: 250px;}
+        .menu-content button { margin-bottom: 10px; width: 100%; cursor: pointer; padding: 10px 8px; border-radius: 4px; border: 1px solid #ccc; font-weight: bold; background: var(--blue-light); color: var(--blue-dark);}
+        .menu-content button:hover { background: var(--blue-main); color: white; }
+        
+        .dashboard { display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; }
+        .stat-box { background: #fff; padding: 15px 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex: 1; text-align: center; min-width: 200px; }
+        .stat-box:nth-child(1) { border-left: 5px solid var(--blue-main); }
+        .stat-box:nth-child(2) { border-left: 5px solid var(--red-main); }
+        .stat-box:nth-child(3) { border-left: 5px solid var(--blue-dark); }
+        
+        .stat-box h3 { margin: 0; font-size: 24px; color: var(--blue-dark); }
+        .stat-box p { margin: 5px 0 0 0; color: #555; font-size: 14px; font-weight: bold; }
+
+        .chart-container { background: #fff; padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border: 1px solid var(--blue-light);}
+
+        .form-box { background: #fff; padding: 15px; border-radius: 8px; margin: 20px 0; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid var(--red-main);}
+        select, input[type="date"], input[type="text"], input[type="number"], button { padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-size: 14px;}
+        
+        .summary-box { margin-top: 20px; background: var(--blue-light); padding: 15px; border: 1px solid var(--blue-main); border-radius: 8px; }
+        .summary-box h3 { margin-top: 0; color: var(--blue-dark); }
+        .summary-list { line-height: 1.6; font-size: 16px; max-height: 200px; overflow-y: auto; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: #fff; padding: 20px; border-radius: 8px; width: 95%; max-width: 900px; max-height: 80vh; overflow-y: auto; box-shadow: 0 5px 15px rgba(0,0,0,0.3); border-top: 5px solid var(--red-main);}
+        .modal-small { max-width: 500px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px;}
+        .close-btn { background: var(--red-main); color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-weight: bold;}
+        
+        .filter-box { margin-bottom: 15px; display: flex; gap: 10px; align-items: center; background: var(--red-light); padding: 10px; border-radius: 5px; flex-wrap: wrap; border: 1px solid var(--red-main);}
+        table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 10px;}
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: var(--blue-dark); color: white; position: sticky; top: 0; }
+        
+        .manage-dept-box { background: var(--blue-light); padding: 12px; margin-bottom: 15px; border-radius: 5px; border: 1px solid var(--blue-main);}
+        .manage-dept-header { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 10px; font-size: 16px; color: var(--blue-dark);}
+        .manage-emp-list { list-style: none; padding-left: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 10px;}
+        .manage-emp-list li { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #fff; border: 1px solid var(--blue-main); border-radius: 5px; width: calc(50% - 15px); min-width: 200px;}
+        
+        .del-btn { background: var(--red-main); color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight:bold;}
+        .edit-btn { background: var(--blue-main); color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight:bold; margin-right: 5px;}
+        .save-btn { background: var(--red-dark); color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight:bold;}
+        
+        .cal-btn-big { background: var(--blue-main); color: white; padding: 15px; border-radius: 8px; border: none; font-size: 16px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.3s;}
+        .cal-btn-big:hover { background: var(--blue-dark); }
+        .calendar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; margin-top: 20px; }
+        .month-box { background: var(--red-light); border: 2px solid var(--red-main); border-radius: 8px; padding: 20px 10px; text-align: center; font-size: 16px; font-weight: bold; color: var(--red-dark); cursor: pointer; transition: 0.2s;}
+        .month-box:hover { background: var(--red-main); color: white; transform: scale(1.05); }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h2 style="margin: 0;">Attendance System</h2>
+    <div class="menu-btn" onclick="toggleMenu()">&#8942; Menu</div>
+    <div id="menuContent" class="menu-content">
+        <button onclick="downloadApp()" style="background: var(--blue-dark); color: #fff;">⬇️ Download App (HTML)</button>
+        <hr style="border-top: 1px solid #ccc;">
+        <button onclick="downloadTemplate()">1. Download Excel Template</button>
+        <input type="file" id="excelFile" onchange="importData(event)" accept=".xlsx, .xls" style="display:none">
+        <button onclick="document.getElementById('excelFile').click()">2. Import Excel Data</button>
+        <button onclick="openExportModal()">3. Export Attendance</button>
+        <button onclick="openHistoryModal()">4. View & Edit History</button>
+        <button onclick="openManageModal()">5. Manage Depts & Names</button>
+        <button onclick="openInteractiveCalendar()">6. Monthly Calendar Summary</button>
+        <button onclick="openDummyModal()" style="background: var(--blue-dark); color: white;">7. Inject Custom Dummy Data</button>
+        <button onclick="clearAttendanceData()" style="background: var(--red-main); color: white; margin-bottom: 0;">Clear Attendance Data</button>
+    </div>
+</div>
+
+<div class="dashboard">
+    <div class="stat-box">
+        <h3 id="dashDepts">0</h3>
+        <p>Total Departments</p>
+    </div>
+    <div class="stat-box">
+        <h3 id="dashEmps">0</h3>
+        <p>Total Employees</p>
+    </div>
+    <div class="stat-box">
+        <h3 id="dashTopDept">-</h3>
+        <p>Highest Attendance Dept.</p>
+    </div>
+</div>
+
+<div class="chart-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+        <h3 style="color: var(--blue-dark); margin: 0;">📊 Live Department Attendance Chart</h3>
+        <div style="background: var(--red-light); padding: 5px 10px; border-radius: 5px; border: 1px solid var(--red-main);">
+            <label style="color: var(--red-dark); font-weight:bold;">Filter Data - From: </label>
+            <input type="date" id="chartStart" onchange="updateChart()">
+            <label style="color: var(--red-dark); font-weight:bold;">To: </label>
+            <input type="date" id="chartEnd" onchange="updateChart()">
+        </div>
+    </div>
+    <canvas id="attChart" height="80"></canvas>
+</div>
+
+<div class="form-box">
+    <input type="date" id="attDate" required>
+    <select id="empDept" onchange="updateEmployeeList()"><option value="">Select Dept First</option></select>
+    <select id="empName"><option value="">Select Name</option></select>
+    <select id="empShift"><option value="Day">Day</option><option value="Night">Night</option></select>
+    <button onclick="addRow()" style="background: var(--red-main); color: white; border: none; cursor: pointer; font-weight: bold; padding: 10px 15px;">Add Attendance</button>
+</div>
+
+<div class="summary-box">
+    <h3>Total Present Days (Real-Time Summary)</h3>
+    <div id="summaryList" class="summary-list">No data yet.</div>
+</div>
+
+<div id="dummyModal" class="modal-overlay">
+    <div class="modal-content modal-small">
+        <div class="modal-header">
+            <h3 style="color: var(--blue-dark);">Inject Custom Dummy Data</h3>
+            <button class="close-btn" onclick="closeModal('dummyModal')">X Close</button>
+        </div>
+        <p style="color: #666; font-size: 14px;">Select a date range to generate random attendance data for testing purposes.</p>
+        <div class="filter-box" style="flex-direction: column; align-items: stretch; background: var(--blue-light); border-color: var(--blue-main);">
+            <label style="font-weight:bold;">Start Date:</label> <input type="date" id="dummyStart">
+            <label style="font-weight:bold; margin-top: 10px;">End Date:</label> <input type="date" id="dummyEnd">
+            <button onclick="generateCustomDummyData()" style="background: var(--blue-main); color: white; margin-top: 15px; padding: 10px; font-weight: bold; font-size: 16px;">Inject Data</button>
+        </div>
+    </div>
+</div>
+
+<div id="interactiveCalModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="calModalTitle" style="color: var(--blue-dark);">Interactive Calendar Summary</h3>
+            <div>
+                <button id="calBackBtn" style="display:none; background:var(--blue-main); color:white; padding:5px 10px; border:none; border-radius:3px; margin-right:10px; cursor:pointer;" onclick="renderCalendarGrid()">⬅️ Back to Months</button>
+                <button class="close-btn" onclick="closeModal('interactiveCalModal')">X Close</button>
+            </div>
+        </div>
+        
+        <div class="filter-box" id="calYearFilterBox">
+            <label style="font-weight:bold; color: var(--red-dark);">Select Year:</label>
+            <input type="number" id="calYearInput" value="2026" style="width: 80px;" onchange="renderCalendarGrid()">
+        </div>
+        
+        <div id="calContainer"></div>
+    </div>
+</div>
+
+<div id="manageModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="color: var(--blue-dark);">Manage Depts & Names</h3>
+            <button class="close-btn" onclick="closeModal('manageModal')">X Close</button>
+        </div>
+        <div class="filter-box">
+            <input type="text" id="newDeptInput" placeholder="New Dept Name" style="flex: 1;">
+            <input type="text" id="newEmpInput" placeholder="Employee Name" style="flex: 1;">
+            <input type="text" id="newFatherInput" placeholder="Father's Name" style="flex: 1;">
+            <button onclick="addManualEntry()" style="background: var(--blue-main); color: white; padding: 10px 15px;">+ Add Entry</button>
+        </div>
+        <hr>
+        <div id="manageListContainer" style="margin-top: 15px; max-height: 50vh; overflow-y: auto; padding-right: 10px;"></div>
+    </div>
+</div>
+
+<div id="historyModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="color: var(--blue-dark);">Attendance History (View & Edit)</h3>
+            <button class="close-btn" onclick="closeModal('historyModal')">X Close</button>
+        </div>
+        <div class="filter-box">
+            <label style="color: var(--red-dark);"><b>From:</b></label> <input type="date" id="histStart">
+            <label style="color: var(--red-dark);"><b>To:</b></label> <input type="date" id="histEnd">
+            <button onclick="filterTable()" style="background: var(--blue-main); color: white; padding: 8px;">Apply Filter</button>
+            <button onclick="clearFilter()" style="padding: 8px;">Show All</button>
+        </div>
+        <table id="attTableMain">
+            <thead><tr><th>Date</th><th>Name</th><th>Dept</th><th>Shift</th><th>Actions</th></tr></thead>
+            <tbody id="attBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="exportModal" class="modal-overlay">
+    <div class="modal-content modal-small">
+        <div class="modal-header">
+            <h3 style="color: var(--blue-dark);">Export Settings</h3>
+            <button class="close-btn" onclick="closeModal('exportModal')">X Close</button>
+        </div>
+        <p style="color: #555;">Select Date Range to Export (Leave blank for ALL data):</p>
+        <div class="filter-box" style="flex-direction: column; align-items: stretch;">
+            <label style="color: var(--red-dark); font-weight:bold;">From Date:</label> <input type="date" id="expStart">
+            <label style="color: var(--red-dark); font-weight:bold; margin-top: 10px;">To Date:</label> <input type="date" id="expEnd">
+            <button onclick="exportCustomExcel()" style="background: var(--blue-main); color: white; margin-top: 15px; padding: 10px; font-weight:bold;">Download Excel Report</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let default50Data = {
+        "IT": ["Aarav (S/o Ramesh)", "Vihaan (S/o Suresh)", "Arjun (S/o Mahesh)", "Sai (S/o Dinesh)", "Reyansh (S/o Rakesh)", "Ayaan (S/o Mukesh)", "Krishna (S/o Ashok)", "Ishaan (S/o Vinod)", "Shaurya (S/o Manoj)", "Atharv (S/o Kamlesh)"],
+        "Sales": ["Karan (S/o Ram)", "Rahul (S/o Shyam)", "Vikas (S/o Naresh)", "Amit (S/o Sunil)", "Ravi (S/o Anil)", "Pooja (D/o Satish)", "Neha (D/o Deepak)", "Riya (D/o Sanjay)", "Sneha (D/o Vijay)", "Kavya (D/o Raj)"],
+        "Marketing": ["Aditya (S/o Prakash)", "Kabir (S/o Om)", "Rudra (S/o Hari)", "Vivaan (S/o Shiv)", "Aryan (S/o Krishna)", "Dhruv (S/o Narayan)", "Aarush (S/o Gopal)", "Darsh (S/o Madhav)", "Vedant (S/o Mohan)", "Pranav (S/o Govind)"],
+        "Finance": ["Ananya (D/o Mukesh)", "Diya (D/o Rakesh)", "Ishita (D/o Suresh)", "Saanvi (D/o Ramesh)", "Aadya (D/o Mahesh)", "Navya (D/o Dinesh)", "Meera (D/o Kamlesh)", "Kiara (D/o Manoj)", "Myra (D/o Ashok)", "Tara (D/o Vinod)"],
+        "Operations": ["Rohan (S/o Shyam)", "Siddharth (S/o Ram)", "Dev (S/o Naresh)", "Nikhil (S/o Sunil)", "Gaurav (S/o Anil)", "Harsh (S/o Satish)", "Yash (S/o Deepak)", "Kunal (S/o Sanjay)", "Manish (S/o Vijay)", "Deepak (S/o Raj)"]
+    };
+
+    let data = JSON.parse(localStorage.getItem("configData"));
+    if (!data || Object.keys(data).length === 0) {
+        data = default50Data; 
+        localStorage.setItem("configData", JSON.stringify(data));
+    }
+
+    let attChartInstance = null; // Chart variable
+
+    function toggleMenu() {
+        let m = document.getElementById('menuContent');
+        m.style.display = (m.style.display === "block") ? "none" : "block";
+    }
+    
+    function closeModal(id) { document.getElementById(id).style.display = "none"; }
+
+    window.onclick = function(event) {
+        if (!event.target.matches('.menu-btn') && !event.target.closest('.menu-content')) {
+            let m = document.getElementById('menuContent');
+            if (m.style.display === "block") m.style.display = "none";
+        }
+    }
+
+    function downloadApp() {
+        let htmlContent = document.documentElement.outerHTML;
+        let blob = new Blob([htmlContent], {type: "text/html"});
+        let a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "Attendance_System_App.html";
+        a.click();
+    }
+
+    // ==========================================
+    // CHART JS LIVE UPDATE LOGIC
+    // ==========================================
+    function initChart() {
+        const ctx = document.getElementById('attChart').getContext('2d');
+        attChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [], 
+                datasets: [{
+                    label: 'Total Present Days',
+                    data: [],
+                    backgroundColor: '#1976D2', // Blue
+                    borderColor: '#1565C0',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+        setDefaultChartDates();
+    }
+
+    function setDefaultChartDates() {
+        let today = new Date();
+        document.getElementById('chartEnd').valueAsDate = today;
+        let firstDay = new Date(today.getFullYear(), today.getMonth(), 1); // Current month starting
+        document.getElementById('chartStart').valueAsDate = firstDay;
+        updateChart();
+    }
+
+    function updateChart() {
+        let sVal = document.getElementById('chartStart').value;
+        let eVal = document.getElementById('chartEnd').value;
+        let sDate = sVal ? new Date(sVal) : new Date('2000-01-01');
+        let eDate = eVal ? new Date(eVal) : new Date('2099-12-31');
+        sDate.setHours(0,0,0,0); eDate.setHours(23,59,59,999);
+
+        let rows = document.querySelectorAll('#attBody tr');
+        let deptCounts = {};
+
+        rows.forEach(row => {
+            if(row.cells[1].querySelector('input')) return; 
+            
+            let dStr = row.cells[0].innerText; 
+            let rowDateObj = parseDDMMYYYY(dStr);
+            
+            if (rowDateObj >= sDate && rowDateObj <= eDate) {
+                let dept = row.cells[2].innerText;
+                deptCounts[dept] = (deptCounts[dept] || 0) + 1;
+            }
+        });
+
+        let labels = Object.keys(deptCounts);
+        let data = Object.values(deptCounts);
+
+        if(attChartInstance) {
+            attChartInstance.data.labels = labels;
+            attChartInstance.data.datasets[0].data = data;
+            
+            // Dynamic Colors based on Red and Blue
+            let bgColors = labels.map((_, i) => i % 2 === 0 ? '#1976D2' : '#D32F2F');
+            attChartInstance.data.datasets[0].backgroundColor = bgColors;
+            
+            attChartInstance.update();
+        }
+    }
+
+    // ==========================================
+    // CUSTOM DUMMY DATA LOGIC (NAYA)
+    // ==========================================
+    function openDummyModal() {
+        document.getElementById('dummyModal').style.display = "flex";
+        document.getElementById('menuContent').style.display = "none";
+    }
+
+    function generateCustomDummyData() {
+        let sVal = document.getElementById('dummyStart').value;
+        let eVal = document.getElementById('dummyEnd').value;
+
+        if(!sVal || !eVal) return alert("Please select both Start and End Dates!");
+        
+        let sDate = new Date(sVal);
+        let eDate = new Date(eVal);
+
+        if(sDate > eDate) return alert("Start Date cannot be greater than End Date!");
+
+        let tbody = document.getElementById('attBody');
+        let html = tbody.innerHTML;
+        let departments = Object.keys(data);
+        
+        let currentDate = new Date(sDate);
+        let count = 0;
+
+        while (currentDate <= eDate) {
+            let dd = String(currentDate.getDate()).padStart(2, '0');
+            let mm = String(currentDate.getMonth() + 1).padStart(2, '0');
+            let yyyy = currentDate.getFullYear();
+            let dateStr = `${dd}/${mm}/${yyyy}`;
+            
+            // Generate 3 random entries per day
+            for(let j=0; j<3; j++) {
+                let randDept = departments[Math.floor(Math.random() * departments.length)];
+                let emps = data[randDept];
+                if(!emps || emps.length===0) continue;
+                let randEmp = emps[Math.floor(Math.random() * emps.length)];
+                let shift = Math.random() > 0.5 ? "Day" : "Night";
+                
+                if(!html.includes(`<td>${dateStr}</td><td>${randEmp}</td>`)) {
+                    html += `<tr>
+                                <td>${dateStr}</td>
+                                <td>${randEmp}</td>
+                                <td>${randDept}</td>
+                                <td>${shift}</td>
+                                <td>
+                                    <button class="edit-btn" onclick="editRow(this)">Edit</button>
+                                    <button class="del-btn" onclick="deleteRow(this)">Del</button>
+                                </td>
+                             </tr>`;
+                    count++;
+                }
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        tbody.innerHTML = html;
+        saveTableState();
+        closeModal('dummyModal');
+        alert(`${count} Dummy Records Injected Successfully!`);
+    }
+
+    // ==========================================
+    // CALENDAR SUMMARY
+    // ==========================================
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    
+    function openInteractiveCalendar() {
+        document.getElementById('interactiveCalModal').style.display = "flex";
+        document.getElementById('menuContent').style.display = "none";
+        document.getElementById('calYearInput').value = new Date().getFullYear();
+        renderCalendarGrid();
+    }
+
+    function renderCalendarGrid() {
+        document.getElementById('calModalTitle').innerText = `Interactive Calendar Summary`;
+        document.getElementById('calBackBtn').style.display = "none";
+        document.getElementById('calYearFilterBox').style.display = "flex";
+        
+        let container = document.getElementById('calContainer');
+        let html = `<div class="calendar-grid">`;
+        for(let i=0; i<12; i++) {
+            html += `<div class="month-box" onclick="showMonthDrillDown(${i + 1})">${monthNames[i]}</div>`;
+        }
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    function showMonthDrillDown(monthIndex) {
+        let year = document.getElementById('calYearInput').value;
+        document.getElementById('calModalTitle').innerText = `${monthNames[monthIndex - 1]} ${year} - Attendance Details`;
+        document.getElementById('calBackBtn').style.display = "inline-block";
+        document.getElementById('calYearFilterBox').style.display = "none";
+        
+        let rows = document.querySelectorAll('#attBody tr');
+        let deptData = {}; 
+        
+        rows.forEach(row => {
+            if(row.cells[1].querySelector('input')) return; 
+            
+            let dStr = row.cells[0].innerText; 
+            let parts = dStr.split('/');
+            let rMonth = parseInt(parts[1], 10);
+            let rYear = parts[2];
+            
+            if(rMonth === monthIndex && rYear === year) {
+                let name = row.cells[1].innerText;
+                let dept = row.cells[2].innerText;
+                
+                if(!deptData[dept]) deptData[dept] = { total: 0, emps: {} };
+                deptData[dept].total++;
+                deptData[dept].emps[name] = (deptData[dept].emps[name] || 0) + 1;
+            }
+        });
+
+        let container = document.getElementById('calContainer');
+        if(Object.keys(deptData).length === 0) {
+            container.innerHTML = `<p style="text-align:center; padding: 30px; font-size:18px; color:var(--red-main);">No attendance records found for ${monthNames[monthIndex - 1]} ${year}.</p>`;
+            return;
+        }
+
+        let html = `<div style="display:flex; flex-direction:column; gap:12px; margin-top:20px;">`;
+        for(let dept in deptData) {
+            let d = deptData[dept];
+            html += `
+            <div style="border:1px solid var(--blue-main); border-radius:5px; background:#f9f9f9; overflow:hidden;">
+                <div style="padding:15px; background:var(--blue-light); cursor:pointer; font-weight:bold; font-size:16px; display:flex; justify-content:space-between; align-items:center; color: var(--blue-dark);" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display==='block' ? 'none' : 'block'">
+                    <span>🏢 Department: ${dept}</span>
+                    <span style="background:var(--red-main); color:white; padding:4px 10px; border-radius:20px; font-size:14px;">Total Presents: ${d.total} ⬇️</span>
+                </div>
+                <div style="display:none; padding:15px; background:#fff; border-top:1px solid var(--blue-main);">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <tr style="background:var(--blue-dark); color:white;">
+                            <th style="padding:8px; border:1px solid #ddd;">Employee Name</th>
+                            <th style="padding:8px; border:1px solid #ddd; text-align:center; width:150px;">Days Present</th>
+                        </tr>`;
+            for(let emp in d.emps) {
+                html += `<tr>
+                            <td style="padding:8px; border:1px solid #ddd; color: #333;">${emp}</td>
+                            <td style="padding:8px; border:1px solid #ddd; text-align:center; font-weight:bold; color: var(--red-dark);">${d.emps[emp]}</td>
+                         </tr>`;
+            }
+            html += `</table></div></div>`;
+        }
+        html += `</div>`;
+        container.innerHTML = html;
+    }
+
+    // ==========================================
+    // CORE FUNCTIONS
+    // ==========================================
+    function openManageModal() {
+        renderManageList();
+        document.getElementById('manageModal').style.display = "flex";
+        document.getElementById('menuContent').style.display = "none";
+    }
+
+    function addManualEntry() {
+        let d = document.getElementById('newDeptInput').value.trim();
+        let n = document.getElementById('newEmpInput').value.trim();
+        let f = document.getElementById('newFatherInput').value.trim();
+        
+        if(!d || !n || !f) return alert("Please enter Department, Name and Father's Name!");
+        let fullName = `${n} (S/o ${f})`; 
+        if(!data[d]) data[d] = [];
+        if(!data[d].includes(fullName)) data[d].push(fullName);
+        
+        saveConfigData();
+        renderManageList();
+        document.getElementById('newEmpInput').value = ""; 
+        document.getElementById('newFatherInput').value = "";
+        alert("Added Successfully!");
+    }
+
+    function renderManageList() {
+        let container = document.getElementById('manageListContainer');
+        let html = "";
+        for(let dept in data) {
+            html += `<div class="manage-dept-box">
+                        <div class="manage-dept-header">${dept} 
+                            <button class="del-btn" onclick="deleteDept('${dept}')">Delete Dept</button>
+                        </div>
+                        <ul class="manage-emp-list">`;
+            data[dept].forEach(emp => {
+                html += `<li><span style="color:var(--blue-dark); font-weight:bold;">${emp}</span> <button class="del-btn" onclick="deleteEmp('${dept}', '${emp}')">Remove</button></li>`;
+            });
+            html += `</ul></div>`;
+        }
+        container.innerHTML = html || "<p>No Departments added yet.</p>";
+    }
+
+    function deleteDept(dept) {
+        if(confirm(`Are you sure you want to delete entire department: ${dept}?`)) {
+            delete data[dept]; saveConfigData(); renderManageList();
+        }
+    }
+
+    function deleteEmp(dept, emp) {
+        if(confirm(`Remove ${emp} from ${dept}?`)) {
+            data[dept] = data[dept].filter(e => e !== emp);
+            saveConfigData(); renderManageList();
+        }
+    }
+
+    function saveConfigData() {
+        localStorage.setItem("configData", JSON.stringify(data));
+        loadDepts(); updateDashboardStats();
+    }
+
+    function updateDashboardStats() {
+        let depts = Object.keys(data).length;
+        let emps = 0;
+        for(let d in data) { emps += data[d].length; }
+        document.getElementById('dashDepts').innerText = depts;
+        document.getElementById('dashEmps').innerText = emps;
+    }
+
+    function loadDepts() {
+        let deptSelect = document.getElementById('empDept');
+        deptSelect.innerHTML = '<option value="">Select Dept First</option>';
+        for(let dept in data) { deptSelect.innerHTML += `<option value="${dept}">${dept}</option>`; }
+    }
+
+    function updateEmployeeList() {
+        let dept = document.getElementById('empDept').value;
+        let nameSelect = document.getElementById('empName');
+        nameSelect.innerHTML = '<option value="">Select Name</option>';
+        if(data[dept]) { data[dept].forEach(n => nameSelect.innerHTML += `<option value="${n}">${n}</option>`); }
+    }
+
+    function addRow() {
+        let dateVal = document.getElementById('attDate').value; 
+        let name = document.getElementById('empName').value;
+        let dept = document.getElementById('empDept').value;
+        let shift = document.getElementById('empShift').value;
+        
+        if(!dateVal || !name || !dept) return alert("Please select Date, Department and Name!");
+        
+        let parts = dateVal.split('-');
+        let formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`; 
+        
+        let rows = document.querySelectorAll('#attBody tr');
+        for(let i=0; i<rows.length; i++) {
+            let rowDate = rows[i].cells[0].innerText;
+            let rowName = rows[i].cells[1].innerText;
+            if(rowDate === formattedDate && rowName === name) {
+                alert(`Duplicate Entry! ${name} is already marked present for ${formattedDate}.`);
+                return; 
+            }
+        }
+        
+        let row = `<tr>
+            <td>${formattedDate}</td>
+            <td>${name}</td>
+            <td>${dept}</td>
+            <td>${shift}</td>
+            <td>
+                <button class="edit-btn" onclick="editRow(this)">Edit</button>
+                <button class="del-btn" onclick="deleteRow(this)">Del</button>
+            </td>
+        </tr>`;
+        let tbody = document.getElementById('attBody');
+        tbody.innerHTML += row;
+        
+        saveTableState();
+        alert("Attendance Added for " + name);
+    }
+
+    function editRow(btn) {
+        let tr = btn.closest('tr');
+        if(btn.innerText === "Edit") {
+            for(let i=0; i<4; i++) {
+                let val = tr.cells[i].innerText;
+                tr.cells[i].innerHTML = `<input type="text" value="${val}" style="border:1px solid var(--red-main);">`;
+            }
+            btn.innerText = "Save"; btn.className = "save-btn";
+        } else {
+            for(let i=0; i<4; i++) {
+                let input = tr.cells[i].querySelector('input');
+                if(input) { tr.cells[i].innerText = input.value; }
+            }
+            btn.innerText = "Edit"; btn.className = "edit-btn";
+            saveTableState(); 
+        }
+    }
+
+    function deleteRow(btn) {
+        if(confirm("Are you sure you want to delete this record?")) {
+            let tr = btn.closest('tr');
+            tr.remove(); saveTableState();
+        }
+    }
+
+    function saveTableState() {
+        localStorage.setItem("attendanceData", document.getElementById('attBody').innerHTML);
+        updateSummary();
+        updateChart(); // Live chart update trigger
+    }
+
+    function updateSummary() {
+        let rows = document.querySelectorAll('#attBody tr');
+        let counts = {};
+        let deptCounts = {}; 
+        
+        rows.forEach(row => {
+            if(row.cells[1].querySelector('input')) return; 
+            let name = row.cells[1].innerText;
+            let dept = row.cells[2].innerText;
+            counts[name] = (counts[name] || 0) + 1;
+            deptCounts[dept] = (deptCounts[dept] || 0) + 1;
+        });
+        
+        let summaryHtml = "";
+        for (let name in counts) { summaryHtml += `<b style="color:var(--blue-dark);">${name}</b>: <span style="color:var(--red-dark); font-weight:bold;">${counts[name]}</span> days <br>`; }
+        document.getElementById('summaryList').innerHTML = summaryHtml || "No data yet.";
+
+        let topDept = "-"; let maxCount = 0;
+        for(let d in deptCounts) {
+            if(deptCounts[d] > maxCount) { maxCount = deptCounts[d]; topDept = d; }
+        }
+        document.getElementById('dashTopDept').innerText = topDept !== "-" ? `${topDept} (${maxCount})` : "-";
+    }
+
+    function openHistoryModal() {
+        document.getElementById('historyModal').style.display = "flex";
+        document.getElementById('menuContent').style.display = "none";
+    }
+
+    function parseDDMMYYYY(dateStr) {
+        let parts = dateStr.split('/');
+        return new Date(parts[2], parts[1] - 1, parts[0]);
+    }
+
+    function filterTable() {
+        let sVal = document.getElementById('histStart').value;
+        let eVal = document.getElementById('histEnd').value;
+        let sDate = sVal ? new Date(sVal) : new Date('2000-01-01');
+        let eDate = eVal ? new Date(eVal) : new Date('2099-12-31');
+        sDate.setHours(0,0,0,0); eDate.setHours(23,59,59,999);
+
+        let rows = document.querySelectorAll('#attBody tr');
+        rows.forEach(row => {
+            let dStr = row.cells[0].innerText;
+            if(row.cells[0].querySelector('input')) dStr = row.cells[0].querySelector('input').value;
+            let rowDateObj = parseDDMMYYYY(dStr);
+            if (rowDateObj >= sDate && rowDateObj <= eDate) { row.style.display = ""; } 
+            else { row.style.display = "none"; }
+        });
+    }
+
+    function clearFilter() {
+        document.getElementById('histStart').value = "";
+        document.getElementById('histEnd').value = "";
+        let rows = document.querySelectorAll('#attBody tr');
+        rows.forEach(row => row.style.display = "");
+    }
+
+    function openExportModal() {
+        document.getElementById('exportModal').style.display = "flex";
+        document.getElementById('menuContent').style.display = "none";
+    }
+
+    function exportCustomExcel() {
+        let sVal = document.getElementById('expStart').value;
+        let eVal = document.getElementById('expEnd').value;
+        let sDate = sVal ? new Date(sVal) : new Date('2000-01-01');
+        let eDate = eVal ? new Date(eVal) : new Date('2099-12-31');
+        sDate.setHours(0,0,0,0); eDate.setHours(23,59,59,999);
+
+        let rows = document.querySelectorAll('#attBody tr');
+        let records = [];
+
+        rows.forEach(row => {
+            if(row.querySelector('input')) return; 
+            let dStr = row.cells[0].innerText; 
+            let rowDateObj = parseDDMMYYYY(dStr);
+            if(rowDateObj >= sDate && rowDateObj <= eDate) {
+                records.push({ date: dStr, dateObj: rowDateObj, name: row.cells[1].innerText, dept: row.cells[2].innerText });
+            }
+        });
+
+        if(records.length === 0) return alert("No attendance records found to export.");
+
+        let uniqueDatesObj = {};
+        records.forEach(r => uniqueDatesObj[r.date] = r.dateObj);
+        let uniqueDates = Object.keys(uniqueDatesObj).sort((a,b) => uniqueDatesObj[a] - uniqueDatesObj[b]);
+
+        let empData = {};
+        records.forEach(r => {
+            let key = r.name + "_" + r.dept;
+            if(!empData[key]) { empData[key] = { name: r.name, dept: r.dept, dates: {}, total: 0 }; }
+            if(!empData[key].dates[r.date]) { empData[key].dates[r.date] = "P"; empData[key].total++; }
+        });
+
+        let aoa = [];
+        let header = ["Name", "Department", ...uniqueDates, "Total Present"];
+        aoa.push(header);
+
+        for(let key in empData) {
+            let e = empData[key];
+            let row = [e.name, e.dept];
+            uniqueDates.forEach(ud => { row.push(e.dates[ud] ? "P" : "-"); });
+            row.push(e.total);
+            aoa.push(row);
+        }
+
+        let ws = XLSX.utils.aoa_to_sheet(aoa);
+        let wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Attendance Report");
+        XLSX.writeFile(wb, 'Smart_Attendance_Report.xlsx');
+        closeModal('exportModal');
+    }
+
+    function clearAttendanceData() {
+        let code = Math.floor(1000 + Math.random() * 9000);
+        if(prompt("Security Check! Enter code to clear ONLY Attendance Data: " + code) == code) {
+            localStorage.removeItem("attendanceData");
+            document.getElementById('attBody').innerHTML = "";
+            saveTableState();
+            alert("Attendance Data Cleared! (Names & Depts are safe).");
+        } else { alert("Wrong Code! Data is safe."); }
+        document.getElementById('menuContent').style.display = "none";
+    }
+
+    window.onload = () => {
+        document.getElementById('attDate').valueAsDate = new Date();
+        loadDepts();
+        updateDashboardStats();
+        
+        let storedData = localStorage.getItem("attendanceData");
+        if(storedData) {
+            let tempDiv = document.createElement('tbody');
+            tempDiv.innerHTML = storedData;
+            Array.from(tempDiv.rows).forEach(row => {
+                if(row.cells.length < 5) {
+                    let td = document.createElement('td');
+                    td.innerHTML = `<button class="edit-btn" onclick="editRow(this)">Edit</button> <button class="del-btn" onclick="deleteRow(this)">Del</button>`;
+                    row.appendChild(td);
+                }
+            });
+            document.getElementById('attBody').innerHTML = tempDiv.innerHTML;
+        }
+        
+        initChart(); // Initialize chart
+        updateSummary(); 
+    };
+</script>
+</body>
+</html>
